@@ -208,7 +208,7 @@ if __name__ == '__main__':
         if args.stage == 'train':
             model.load(args.checkpoint)
         elif args.stage == 'finetune':
-            model.load(args.checkpoint, train_bn=False, lr=0.00005)
+            model.load(args.checkpoint, lr=0.00005)
 
     # Fit model
     model.fit_generator(

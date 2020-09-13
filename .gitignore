@@ -109,3 +109,5 @@ venv.bak/
 
 backup*
 pexels_royalty_free_photos*
+saved_models/
+weights/

@@ -66,12 +66,14 @@ class PConvUnet(object):
         # Create UNet-like model
         if self.gpus <= 1:
             self.model, inputs_mask = self.build_pconv_unet()
-            self.compile_pconv_unet(self.model, inputs_mask)            
+            if not inference_only:
+                self.compile_pconv_unet(self.model, inputs_mask)            
         else:
             with tf.device("/cpu:0"):
                 self.model, inputs_mask = self.build_pconv_unet()
             self.model = multi_gpu_model(self.model, gpus=self.gpus)
-            self.compile_pconv_unet(self.model, inputs_mask)
+            if not inference_only:
+                self.compile_pconv_unet(self.model, inputs_mask)
         
     def build_vgg(self, weights="imagenet"):
         """
@@ -90,7 +92,7 @@ class PConvUnet(object):
         if self.inference_only:
             model = Model(inputs=img, outputs=[img for _ in range(len(self.vgg_layers))])
             model.trainable = False
-            model.compile(loss='mse', optimizer='adam')
+            #model.compile(loss='mse', optimizer='adam')
             return model
                 
         # Get the vgg network from Keras applications
@@ -110,7 +112,7 @@ class PConvUnet(object):
 
         return model
         
-    def build_pconv_unet(self, train_bn=True):      
+    def build_pconv_unet(self):      
 
         # INPUTS
         inputs_img = Input((self.img_rows, self.img_cols, 3), name='inputs_img')
@@ -120,7 +122,7 @@ class PConvUnet(object):
         def encoder_layer(img_in, mask_in, filters, kernel_size, bn=True):
             conv, mask = PConv2D(filters, kernel_size, strides=2, padding='same')([img_in, mask_in])
             if bn:
-                conv = BatchNormalization(name='EncBN'+str(encoder_layer.counter))(conv, training=train_bn)
+                conv = BatchNormalization(name='EncBN'+str(encoder_layer.counter))(conv, training=not self.inference_only)
             conv = Activation('relu')(conv)
             encoder_layer.counter += 1
             return conv, mask
@@ -258,11 +260,14 @@ class PConvUnet(object):
         """Get summary of the UNet model"""
         print(self.model.summary())
 
-    def load(self, filepath, train_bn=True, lr=0.0002):
+    def load(self, filepath, lr=0.0002):
 
         # Create UNet-like model
-        self.model, inputs_mask = self.build_pconv_unet(train_bn)
-        self.compile_pconv_unet(self.model, inputs_mask, lr) 
+        self.model, inputs_mask = self.build_pconv_unet()
+        if not self.inference_only:
+            self.compile_pconv_unet(self.model, inputs_mask, lr)
+        else:
+            self.model.trainable = False
 
         # Load weights into model
         epoch = int(os.path.basename(filepath).split('.')[1].split('-')[0])
